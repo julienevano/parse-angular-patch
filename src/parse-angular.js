@@ -145,20 +145,13 @@
 						/// Generate setters & getters
 						Parse._.each(attrs, function(currentAttr){
 
-							var field = capitaliseFirstLetter(currentAttr);
-
-							// Don't override if we set a custom setters or getters
-							if(!newClass.prototype['get' + field]) {
-								newClass.prototype['get' + field] = function() {
-									return this.get(currentAttr);
-								};
-							}
-							if(!newClass.prototype['set' + field]) {
-								newClass.prototype['set' + field] = function(data) {
-									this.set(currentAttr, data);
-									return this;
-								}
-							}
+							(function() {
+								var propName = currentAttr;
+								Object.defineProperty(newClass.prototype, propName, {
+									get : function(){ return this.get(propName); },
+									set : function(value){ this.set(propName, value); }
+								});
+							})();
 
 						});
 					}
