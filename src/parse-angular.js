@@ -183,6 +183,14 @@
 			Object.defineProperty(self, 'id', {
 				get : function(){ return _parseObject.id; }
 			});
+
+			Parse._.each(attrs, function(currentAttr) {
+				var propName = currentAttr;
+				Object.defineProperty(self, propName, {
+					get : function(){ return _parseObject.get(propName); },
+					set : function(value){ _parseObject.set(propName, value); }
+				});
+			});
 		}
 
 })(this);
