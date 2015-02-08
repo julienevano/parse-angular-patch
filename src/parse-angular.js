@@ -1,4 +1,5 @@
 (function(window, undef){
+	'use strict';
 
 	var angular = window.angular;
 	if (angular !== undef) {
@@ -98,12 +99,13 @@
 											set : function(value){ this.set(propName, value); }
 										});
 									})();
-
-									/// Get angular bindable object
-									newClass.prototype.getBindableParseObject = function() {
-										return new BindableParseObject(this, attrs);
-									};
 								});
+
+								/// Get angular bindable object
+								newClass.prototype.getBindableParseObject = function() {
+									return new BindableParseObject(this, attrs);
+								};
+
 								/// Add shortcut to create Parse.Query
 								newClass.query = function() {
 									return new Parse.Query(newClass);
