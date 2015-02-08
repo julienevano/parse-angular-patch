@@ -106,6 +106,30 @@
 									return new BindableParseObject(this, attrs);
 								};
 
+								/// Deep clone method to also clone relations
+								newClass.prototype.deepClone = function(relations) {
+									relations = relations || protoProps.relations;
+									var self = this;
+									var clone = self.clone();
+									if (Parse._.isObject(relations)) {
+										Parse._.each(relations, function(type, property) {
+											var value = clone.get(property);
+											if (Parse._.isArray(value)) {
+												var clones = [];
+												Parse._.each(value, function(item) {
+													if (Parse._.isObject(item) && Parse._.isFunction(item.deepClone)) {
+														clones.push(item.deepClone());
+													}
+												});
+												clone.set(property, clones);
+											} else if (Parse._.isObject(value) && Parse._.isFunction(value.deepClone)) {
+												clone.set(property, value.deepClone());
+											}
+										});
+									}
+									return clone;
+								};
+
 								/// Add shortcut to create Parse.Query
 								newClass.query = function() {
 									return new Parse.Query(newClass);
@@ -170,13 +194,13 @@
 
 		function BindableParseObject(parseObject, attrs) {
 			var self = this,
-					_parseObject = parseObject;
+				_parseObject = parseObject;
 
 			self.getParseObject = function() {
 				return _parseObject;
 			};
 
-			Parse._.each(['save', 'fetch', 'destroy', 'clone'], function(method) {
+			Parse._.each(['save', 'fetch', 'destroy', 'clone', 'deepClone'], function(method) {
 				self[method] = function() {
 					return _parseObject[method].apply(_parseObject, arguments);
 				};
