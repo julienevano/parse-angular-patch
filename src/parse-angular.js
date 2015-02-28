@@ -1,222 +1,224 @@
 (function(window, undef){
-	'use strict';
+  'use strict';
 
-	var angular = window.angular;
-	if (angular !== undef) {
+  var angular = window.angular;
+  if (angular !== undef) {
 
-		angular
-			.module('parse-angular', [])
-			.run(['$q', '$window', function($q, $window) {
+    angular
+      .module('parse-angular', [])
+      .run(['$q', '$window', function($q, $window) {
 
-				var Parse = $window.Parse;
-				if (!angular.isUndefined(Parse) && angular.isObject(Parse)) {
+        var Parse = $window.Parse;
+        if (!angular.isUndefined(Parse) && angular.isObject(Parse)) {
 
-					var methodsToUpdatePerParseObject = {
-						'Object': {
-							prototype: ['save', 'fetch', 'destroy'],
-							static: ['saveAll', 'destroyAll']
-						},
-						'Collection': {
-							prototype: ['fetch'],
-							static: []
-						},
-						'Query': {
-							prototype: ['find', 'first', 'count', 'get'],
-							static: []
-						},
-						'Cloud': {
-							prototype: [],
-							static: ['run']
-						},
-						'User': {
-							prototype: ['signUp'],
-							static: ['requestPasswordReset', 'logIn']
-						},
-						'FacebookUtils': {
-							prototype: [],
-							static: ['logIn', 'link', 'unlink']
-						}
-					};
+          var methodsToUpdatePerParseObject = {
+            'Object': {
+              prototype: ['save', 'fetch', 'destroy'],
+              static: ['saveAll', 'destroyAll']
+            },
+            'Collection': {
+              prototype: ['fetch'],
+              static: []
+            },
+            'Query': {
+              prototype: ['find', 'first', 'count', 'get'],
+              static: []
+            },
+            'Cloud': {
+              prototype: [],
+              static: ['run']
+            },
+            'User': {
+              prototype: ['signUp'],
+              static: ['requestPasswordReset', 'logIn']
+            },
+            'FacebookUtils': {
+              prototype: [],
+              static: ['logIn', 'link', 'unlink']
+            }
+          };
 
-					Parse._.each(methodsToUpdatePerParseObject, function(currentObject, currentClass) {
-						var prototypeMethods = {
-							methods: currentObject.prototype,
-							target: Parse[currentClass].prototype
-						};
-						var staticMethods = {
-							methods: currentObject.static,
-							target: Parse[currentClass]
-						};
+          Parse._.each(methodsToUpdatePerParseObject, function(currentObject, currentClass) {
+            var prototypeMethods = {
+              methods: currentObject.prototype,
+              target: Parse[currentClass].prototype
+            };
+            var staticMethods = {
+              methods: currentObject.static,
+              target: Parse[currentClass]
+            };
 
-						Parse._.each([prototypeMethods, staticMethods], function(methodType) {
-							methodType.methods.forEach(function(method) {
-								var origMethod = methodType.target[method];
-								// Overwrite original function by wrapping it with $q
-								methodType.target[method] = function() {
-									return origMethod.apply(this, arguments)
-										.then(function(data){
-											return $q.when(data);
-										}, function(err){
-											return $q.reject(err);
-										});
-								};
-							});
-						});
-					});
-				}
-			}]);
+            Parse._.each([prototypeMethods, staticMethods], function(methodType) {
+              methodType.methods.forEach(function(method) {
+                var origMethod = methodType.target[method];
+                // Overwrite original function by wrapping it with $q
+                methodType.target[method] = function() {
+                  return origMethod.apply(this, arguments)
+                    .then(function(data){
+                      return $q.when(data);
+                    }, function(err){
+                      return $q.reject(err);
+                    });
+                };
+              });
+            });
+          });
+        }
+      }]);
 
-			angular
-				.module('parse-angular.enhance', ['parse-angular'])
-				.run(['$q', '$window', function($q, $window) {
+      angular
+        .module('parse-angular.enhance', ['parse-angular'])
+        .run(['$q', '$window', function($q, $window) {
 
-					var Parse = $window.Parse;
-					if (!angular.isUndefined(Parse) && angular.isObject(Parse)) {
+          var Parse = $window.Parse;
+          if (!angular.isUndefined(Parse) && angular.isObject(Parse)) {
 
-						/**
-						 * Parse.Object
-						 */
+            /**
+             * Parse.Object
+             */
 
-						/// Create a method to easily access our object
-						/// Because Parse.Object("xxxx") is actually creating an object and we can't access static methods
-						Parse.Object.getClass = function(className) {
-							return Parse.Object._classMap[className];
-						};
+            /// Create a method to easily access our object
+            /// Because Parse.Object("xxxx") is actually creating an object and we can't access static methods
+            Parse.Object.getClass = function(className) {
+              return Parse.Object._classMap[className];
+            };
 
-						///// Override orig extend
-						var origObjectExtend = Parse.Object.extend;
-						Parse.Object.extend = function(protoProps) {
-							var newClass = origObjectExtend.apply(this, arguments);
-							if (Parse._.isObject(protoProps) && Parse._.isArray(protoProps.attrs)) {
-								var attrs = protoProps.attrs;
+            ///// Override orig extend
+            var origObjectExtend = Parse.Object.extend;
+            Parse.Object.extend = function(protoProps) {
+              var newClass = origObjectExtend.apply(this, arguments);
+              if (Parse._.isObject(protoProps) && Parse._.isArray(protoProps.attrs)) {
+                var attrs = protoProps.attrs;
+                var methods = protoProps.methods;
 
-								/// Generate setters & getters
-								Parse._.each(attrs, function(currentAttr){
-									(function() {
-										var propName = currentAttr;
-										Object.defineProperty(newClass.prototype, propName, {
-											get : function(){ return this.get(propName); },
-											set : function(value){ this.set(propName, value); }
-										});
-									})();
-								});
+                /// Generate setters & getters
+                Parse._.each(attrs, function(currentAttr){
+                  (function() {
+                    var propName = currentAttr;
+                    Object.defineProperty(newClass.prototype, propName, {
+                      get : function(){ return this.get(propName); },
+                      set : function(value){ this.set(propName, value); }
+                    });
+                  })();
+                });
 
-								/// Get angular bindable object
-								newClass.prototype.getBindableParseObject = function() {
-									return new BindableParseObject(this, attrs);
-								};
+                /// Get angular bindable object
+                newClass.prototype.getBindableParseObject = function() {
+                  return new BindableParseObject(this, attrs, methods);
+                };
 
-								/// Deep clone method to also clone relations
-								newClass.prototype.deepClone = function(relations) {
-									relations = relations || protoProps.relations;
-									var self = this;
-									var clone = self.clone();
-									if (Parse._.isObject(relations)) {
-										Parse._.each(relations, function(type, property) {
-											var value = clone.get(property);
-											if (Parse._.isArray(value)) {
-												var clones = [];
-												Parse._.each(value, function(item) {
-													if (Parse._.isObject(item) && Parse._.isFunction(item.deepClone)) {
-														clones.push(item.deepClone());
-													}
-												});
-												clone.set(property, clones);
-											} else if (Parse._.isObject(value) && Parse._.isFunction(value.deepClone)) {
-												clone.set(property, value.deepClone());
-											}
-										});
-									}
-									return clone;
-								};
+                /// Deep clone method to also clone relations
+                newClass.prototype.deepClone = function(relations) {
+                  relations = relations || protoProps.relations;
+                  var self = this;
+                  var clone = self.clone();
+                  if (Parse._.isObject(relations)) {
+                    Parse._.each(relations, function(type, property) {
+                      var value = clone.get(property);
+                      if (Parse._.isArray(value)) {
+                        var clones = [];
+                        Parse._.each(value, function(item) {
+                          if (Parse._.isObject(item) && Parse._.isFunction(item.deepClone)) {
+                            clones.push(item.deepClone());
+                          }
+                        });
+                        clone.set(property, clones);
+                      } else if (Parse._.isObject(value) && Parse._.isFunction(value.deepClone)) {
+                        clone.set(property, value.deepClone());
+                      }
+                    });
+                  }
+                  return clone;
+                };
 
-								/// Add shortcut to create Parse.Query
-								newClass.query = function() {
-									return new Parse.Query(newClass);
-								};
-							}
+                /// Add shortcut to create Parse.Query
+                newClass.query = function() {
+                  return new Parse.Query(newClass);
+                };
+              }
 
-							return newClass;
-						};
+              return newClass;
+            };
 
-						/**
-						 * Parse.Collection
-						 */
+            /**
+             * Parse.Collection
+             */
 
-						/// Keep references & init collection class map
-						Parse.Collection._classMap = {};
+            /// Keep references & init collection class map
+            Parse.Collection._classMap = {};
 
-						var origExtend = Parse.Collection.extend;
+            var origExtend = Parse.Collection.extend;
 
-						/// Enhance Collection 'extend' to store their subclass in a map
-						Parse.Collection.extend = function(opts) {
-							var extended = origExtend.apply(this, arguments);
+            /// Enhance Collection 'extend' to store their subclass in a map
+            Parse.Collection.extend = function(opts) {
+              var extended = origExtend.apply(this, arguments);
 
-							if (opts && opts.className) {
-								Parse.Collection._classMap[opts.className] = extended;
-							}
+              if (opts && opts.className) {
+                Parse.Collection._classMap[opts.className] = extended;
+              }
 
-							return extended;
-						};
+              return extended;
+            };
 
-						Parse.Collection.getClass = function(className) {
-							return Parse.Collection._classMap[className];
-						};
+            Parse.Collection.getClass = function(className) {
+              return Parse.Collection._classMap[className];
+            };
 
-						/// Enhance Collection prototype
-						Parse.Collection.prototype = angular.extend(Parse.Collection.prototype, {
-							// Simple paginator
-							loadMore: function(opts) {
+            /// Enhance Collection prototype
+            Parse.Collection.prototype = angular.extend(Parse.Collection.prototype, {
+              // Simple paginator
+              loadMore: function(opts) {
 
-								if (!angular.isUndefined(this.query)) {
+                if (!angular.isUndefined(this.query)) {
 
-									// Default Parse limit is 100
-									var currentLimit = this.query._limit === -1 ? 100 : this.query._limit;
-									var currentSkip = this.query._skip;
+                  // Default Parse limit is 100
+                  var currentLimit = this.query._limit === -1 ? 100 : this.query._limit;
+                  var currentSkip = this.query._skip;
 
-									currentSkip += currentLimit;
+                  currentSkip += currentLimit;
 
-									this.query.skip(currentSkip);
+                  this.query.skip(currentSkip);
 
-									var self = this;
+                  var self = this;
 
-									return this.query.find().then(function(newModels) {
-											if (!opts || opts.add !== false) { self.add(newModels); }
-											if (newModels.length < currentLimit) { self.hasMoreToLoad = false; }
-											return newModels;
-										});
-								}
-							}
-						});
-					}
-			}]);
-		}
+                  return this.query.find().then(function(newModels) {
+                      if (!opts || opts.add !== false) { self.add(newModels); }
+                      if (newModels.length < currentLimit) { self.hasMoreToLoad = false; }
+                      return newModels;
+                    });
+                }
+              }
+            });
+          }
+      }]);
+    }
 
-		function BindableParseObject(parseObject, attrs) {
-			var self = this,
-				_parseObject = parseObject;
+    function BindableParseObject(parseObject, attrs, methods) {
+      var self = this,
+        _parseObject = parseObject;
 
-			self.getParseObject = function() {
-				return _parseObject;
-			};
+      self.getParseObject = function() {
+        return _parseObject;
+      };
 
-			Parse._.each(['save', 'fetch', 'destroy', 'clone', 'deepClone'], function(method) {
-				self[method] = function() {
-					return _parseObject[method].apply(_parseObject, arguments);
-				};
-			});
+      methods = methods || [];
+      Parse._.each(['save', 'fetch', 'destroy', 'clone', 'deepClone'].concat(methods), function(method) {
+        self[method] = function() {
+          return _parseObject[method].apply(_parseObject, arguments);
+        };
+      });
 
-			Object.defineProperty(self, 'id', {
-				get : function(){ return _parseObject.id; }
-			});
+      Object.defineProperty(self, 'id', {
+        get : function(){ return _parseObject.id; }
+      });
 
-			Parse._.each(attrs, function(currentAttr) {
-				var propName = currentAttr;
-				Object.defineProperty(self, propName, {
-					get : function(){ return _parseObject.get(propName); },
-					set : function(value){ _parseObject.set(propName, value); }
-				});
-			});
-		}
+      Parse._.each(attrs, function(currentAttr) {
+        var propName = currentAttr;
+        Object.defineProperty(self, propName, {
+          get : function(){ return _parseObject.get(propName); },
+          set : function(value){ _parseObject.set(propName, value); }
+        });
+      });
+    }
 
 })(this);
